@@ -5,15 +5,20 @@ class Program
     private static HubConnection _connection;
     private static string _username = "";
 
+
     static async Task Main()
     {
         Console.Write("Enter your username: ");
         _username = Console.ReadLine() ?? "User";
 
-        // Setup connection to SignalR hub
         _connection = new HubConnectionBuilder()
             .WithUrl("http://localhost:5097/chatHub")
             .Build();
+
+        _connection.On<string>("RegistrationSuccess", (message) =>
+        {
+            Console.WriteLine(message);
+        });
 
         _connection.On<string, string>("ReceiveMessage", (sender, message) =>
         {
@@ -25,6 +30,7 @@ class Program
         try
         {
             await _connection.StartAsync();
+            await _connection.InvokeAsync("RegisterUser", _username);
             Console.WriteLine("Connected to chat.");
         }
         catch (Exception ex)
@@ -38,6 +44,9 @@ class Program
 
     static async Task MessageLoop()
     {
+        Console.Write("Enter recipient's username: ");
+        var recipientUsername = Console.ReadLine();
+        
         while (true)
         {
             Console.Write("You: ");
@@ -50,7 +59,7 @@ class Program
             Console.WriteLine("(Sending...)");
             Console.ResetColor();
 
-            await _connection.InvokeAsync("SendMessage", "Receiver", message);
+            await _connection.InvokeAsync("SendMessage", recipientUsername, message);
         }
 
         await _connection.StopAsync();
