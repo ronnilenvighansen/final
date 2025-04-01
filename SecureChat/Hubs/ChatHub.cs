@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.SignalR;
+using SharedSecurity;
 using System.Collections.Concurrent;
 
 namespace SecureChat.Hubs
@@ -10,6 +11,7 @@ namespace SecureChat.Hubs
         public async Task RegisterUser(string username)
         {
             _userConnections[username] = Context.ConnectionId;
+            Console.WriteLine($"✅ User '{username}' registered with Connection ID: {Context.ConnectionId}");
             await Clients.Caller.SendAsync("RegistrationSuccess", $"Registered as {username}");
         }
 
@@ -30,11 +32,33 @@ namespace SecureChat.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(string receiverUsername, string encryptedMessage)
+        public async Task SendMessage(string receiverUsername, string message)
         {
-            if (_userConnections.TryGetValue(receiverUsername, out string? targetConnectionId))
+            try
             {
-                await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", Context.ConnectionId, encryptedMessage);
+                if (_userConnections.TryGetValue(receiverUsername, out string? targetConnectionId))
+                {
+                    var senderUsername = _userConnections.FirstOrDefault(x => x.Value == Context.ConnectionId).Key;
+                    
+                    if (string.IsNullOrEmpty(senderUsername))
+                    {
+                        Console.WriteLine("Sender username not found.");
+                        return;
+                    }
+                    
+                    Console.WriteLine($"Sending message from Username: {senderUsername} to Username: {receiverUsername}");
+                    string encryptedMessage = AesEncryption.Encrypt(message);
+                    await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", senderUsername, encryptedMessage);
+                }
+                else
+                {
+                    Console.WriteLine($"User {receiverUsername} not found.");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error in SendMessage: {ex.Message}");
+                throw;
             }
         }
     }

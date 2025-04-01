@@ -1,10 +1,10 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
+using SharedSecurity;
 
 class Program
 {
     private static HubConnection _connection;
     private static string _username = "";
-
 
     static async Task Main()
     {
@@ -20,18 +20,20 @@ class Program
             Console.WriteLine(message);
         });
 
-        _connection.On<string, string>("ReceiveMessage", (sender, message) =>
+        _connection.On<string, string>("ReceiveMessage", (sender, encryptedMessage) =>
         {
+            Console.WriteLine($"\nEncrypted message:\n{sender}: {encryptedMessage}");
+            string decryptedMessage = AesEncryption.Decrypt(encryptedMessage);
             Console.ForegroundColor = ConsoleColor.Green;
-            Console.WriteLine($"\n{sender}: {message}");
+            Console.WriteLine($"{sender}: {decryptedMessage}");
             Console.ResetColor();
         });
 
         try
         {
             await _connection.StartAsync();
-            await _connection.InvokeAsync("RegisterUser", _username);
             Console.WriteLine("Connected to chat.");
+            await _connection.InvokeAsync("RegisterUser", _username);
         }
         catch (Exception ex)
         {
@@ -43,12 +45,14 @@ class Program
     }
 
     static async Task MessageLoop()
-    {
-        Console.Write("Enter recipient's username: ");
-        var recipientUsername = Console.ReadLine();
-        
+    {   
         while (true)
         {
+            Console.Write("Enter receiver username: ");
+            var receiver = Console.ReadLine();
+
+            if (string.IsNullOrWhiteSpace(receiver)) continue;
+
             Console.Write("You: ");
             var message = Console.ReadLine();
 
@@ -58,8 +62,14 @@ class Program
             Console.ForegroundColor = ConsoleColor.Yellow;
             Console.WriteLine("(Sending...)");
             Console.ResetColor();
-
-            await _connection.InvokeAsync("SendMessage", recipientUsername, message);
+            try
+            {
+                await _connection.InvokeAsync("SendMessage", receiver, message);
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Failed to send message: {ex.Message}");
+            }
         }
 
         await _connection.StopAsync();
