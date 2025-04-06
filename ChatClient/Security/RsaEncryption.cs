@@ -1,7 +1,7 @@
 using System.Security.Cryptography;
 using System.Text;
 
-namespace SharedSecurity
+namespace ChatClient.Security
 {
     public class RSAEncryption
     {

@@ -1,5 +1,5 @@
 ﻿using Microsoft.AspNetCore.SignalR.Client;
-using SharedSecurity;
+using ChatClient.Security;
 
 class Program
 {
@@ -8,10 +8,9 @@ class Program
 
     static async Task Main()
     {
-        Console.Write("Enter your username and then press Enter Key: ");
+        Console.Write("Enter your username and then press Enter: ");
         _username = Console.ReadLine() ?? "User";
         string myPublicKey = RSAEncryption.GetPublicKey();
-
 
         _connection = new HubConnectionBuilder()
             .WithUrl("https://localhost:7151/chatHub")
@@ -22,17 +21,15 @@ class Program
             Console.WriteLine(message);
         });
 
-        _connection.On<string, string, string, string>("ReceiveMessage", (sender, encryptedMessage, encryptedKey, iv) =>
+        _connection.On<string, string, string, string, string>("ReceiveMessage", (sender, encryptedMessage, encryptedKey, iv, hmac) =>
         {
-            Console.WriteLine($"\n\nEncrypted AES Key (RSA Encrypted):\n{encryptedKey}");
             Console.WriteLine($"\nEncrypted message:\n{sender}: {encryptedMessage}");
-            Console.WriteLine($"\nIV:\n{iv}");
 
             try
             {
-                string decryptedAESKey = RSAEncryption.DecryptWithPrivateKey(encryptedKey);
-                AesEncryption.SetKey(decryptedAESKey);
-                string decryptedMessage = AesEncryption.Decrypt(encryptedMessage, iv);
+                string decryptedAesKey = RSAEncryption.DecryptWithPrivateKey(encryptedKey);
+                AesHmacEncryption.SetKey(decryptedAesKey);
+                string decryptedMessage = AesHmacEncryption.Decrypt(encryptedMessage, iv, hmac);
 
                 Console.ForegroundColor = ConsoleColor.Green;
                 Console.WriteLine($"\nDecrypted message:\n{sender}: {decryptedMessage}");
@@ -65,16 +62,18 @@ class Program
     {   
         while (true)
         {
-            Console.Write("Enter receiver username and then press Enter Key: ");
+            Console.Write("Enter receiver username and then press Enter (Write Exit and press Enter to exit): ");
             var receiver = Console.ReadLine();
+
+            if (receiver.Equals("exit", StringComparison.OrdinalIgnoreCase)) break;
 
             if (string.IsNullOrWhiteSpace(receiver)) continue;
 
-            Console.Write("You (Enter a message and then press Enter Key): ");
+            Console.Write("Write a message and then press Enter (Write Exit and press Enter to exit): ");
             var message = Console.ReadLine();
 
             if (string.IsNullOrWhiteSpace(message)) continue;
-            if (message.Equals("/exit", StringComparison.OrdinalIgnoreCase)) break;
+            if (message.Equals("exit", StringComparison.OrdinalIgnoreCase)) break;
             try
             {
                 string receiverPublicKey = await _connection.InvokeAsync<string>("GetPublicKey", receiver);
@@ -85,10 +84,9 @@ class Program
                     continue;
                 }
 
-                string aesKey = AesEncryption.GenerateRandomKey(); 
-                AesEncryption.SetKey(aesKey);
-                
-                var (encryptedMessage, iv) = AesEncryption.Encrypt(message); 
+                string aesKey = AesHmacEncryption.GenerateRandomKey();
+                AesHmacEncryption.SetKey(aesKey);
+                var (encryptedMessage, iv, hmac) = AesHmacEncryption.Encrypt(message);
 
                 string encryptedAesKey = RSAEncryption.EncryptWithPublicKey(aesKey, receiverPublicKey);
 
@@ -96,7 +94,7 @@ class Program
                 Console.WriteLine("(Sending...)");
                 Console.ResetColor();
                 
-                await _connection.InvokeAsync("SendMessage", receiver, encryptedMessage, encryptedAesKey, iv);
+                await _connection.InvokeAsync("SendMessage", receiver, encryptedMessage, encryptedAesKey, iv, hmac);
                 
             }
             catch (Exception ex)
