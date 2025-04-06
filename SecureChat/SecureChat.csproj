@@ -12,7 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\SharedSecurity\SharedSecurity.csproj" />
+    <ProjectReference Include="..\ChatClient\ChatClient.csproj" />
   </ItemGroup>
 
 </Project>

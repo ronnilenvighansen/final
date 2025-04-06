@@ -7,13 +7,22 @@ namespace SecureChat.Hubs
     public class ChatHub : Hub
     {
         private static readonly ConcurrentDictionary<string, string> _userConnections = new();
-
-        public async Task RegisterUser(string username)
+        private static readonly ConcurrentDictionary<string, string> _userPublicKeys = new();
+        
+        public async Task RegisterUser(string username, string publicKey)
         {
             _userConnections[username] = Context.ConnectionId;
-            Console.WriteLine($"✅ User '{username}' registered with Connection ID: {Context.ConnectionId}");
-            await Clients.Caller.SendAsync("RegistrationSuccess", $"Registered as {username}");
+            _userPublicKeys[username] = publicKey;
+            Console.WriteLine($"User '{username}' registered with Connection ID: {Context.ConnectionId}");
+            await Clients.Caller.SendAsync("RegistrationSuccess", $"Registered as {username}.");
         }
+
+        public string? GetPublicKey(string username)
+        {
+            _userPublicKeys.TryGetValue(username, out string? publicKey);
+            return publicKey;
+        }
+
 
         public override async Task OnConnectedAsync()
         {
@@ -32,7 +41,7 @@ namespace SecureChat.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(string receiverUsername, string message)
+        public async Task SendMessage(string receiverUsername, string encryptedMessage, string encryptedAesKey, string iv)
         {
             try
             {
@@ -45,10 +54,9 @@ namespace SecureChat.Hubs
                         Console.WriteLine("Sender username not found.");
                         return;
                     }
-                    
+
                     Console.WriteLine($"Sending message from Username: {senderUsername} to Username: {receiverUsername}");
-                    string encryptedMessage = AesEncryption.Encrypt(message);
-                    await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", senderUsername, encryptedMessage);
+                    await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", senderUsername, encryptedMessage, encryptedAesKey, iv);
                 }
                 else
                 {
