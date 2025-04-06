@@ -1,5 +1,4 @@
 using Microsoft.AspNetCore.SignalR;
-using SharedSecurity;
 using System.Collections.Concurrent;
 
 namespace SecureChat.Hubs
@@ -41,7 +40,7 @@ namespace SecureChat.Hubs
             await base.OnDisconnectedAsync(exception);
         }
 
-        public async Task SendMessage(string receiverUsername, string encryptedMessage, string encryptedAesKey, string iv)
+        public async Task SendMessage(string receiverUsername, string encryptedMessage, string encryptedAesKey, string iv, string hmac)
         {
             try
             {
@@ -56,7 +55,7 @@ namespace SecureChat.Hubs
                     }
 
                     Console.WriteLine($"Sending message from Username: {senderUsername} to Username: {receiverUsername}");
-                    await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", senderUsername, encryptedMessage, encryptedAesKey, iv);
+                    await Clients.Client(targetConnectionId).SendAsync("ReceiveMessage", senderUsername, encryptedMessage, encryptedAesKey, iv, hmac);
                 }
                 else
                 {
